@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>噜家理财系统｜云端共享版 V1.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.4/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                        info: '#06b6d4',
+                        inputBg: '#fffbeb',
+                        autoBg: '#f0f9ff',
+                        cardBg: '#ffffff',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .cell-input { background:#fffbeb;border:1px solid #fbbf24;padding:6px 8px;border-radius:6px; }
+        .cell-input:disabled { background:#f3f4f6;opacity:0.7; }
+        .cell-auto { background:#f0f9ff;border:1px solid #bae6fd;padding:6px 8px;border-radius:6px;color:#374151 }
+        .tab-active { border-bottom:2px solid #2563eb;color:#2563eb;font-weight:500; }
+        .scroll-x { overflow-x:auto; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div id="app" class="max-w-7xl mx-auto px-3 py-4">
+    <header class="mb-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+            <div>
+                <h1 class="text-2xl font-bold"><i class="fa fa-line-chart text-primary mr-2"></i>噜家理财系统 V1.0【云端共享】</h1>
+                <p class="text-gray-500">
+                    当前模式：<span v-if="isEditor" class="text-success font-medium">🔐编辑模式（可修改，记得保存云端）</span>
+                    <span v-else class="text-warning font-medium">👀只读模式（刷新获取最新数据）</span>
+                </p>
+            </div>
+            <div class="flex gap-2 flex-wrap items-center">
+                <div v-if="!isEditor" class="flex gap-2">
+                    <input v-model="inputPwd" placeholder="输入编辑密码" class="border px-2 py-1.5 rounded">
+                    <button @click="tryEnterEditor" class="bg-primary text-white px-3 py-1.5 rounded">进入编辑</button>
+                </div>
+                <button v-if="isEditor" @click="saveCloud" class="bg-success text-white px-3 py-1.5 rounded"><i class="fa fa-cloud-upload"></i>保存到云端</button>
+                <button v-if="isEditor" @click="exportJson" class="border px-3 py-1.5 rounded"><i class="fa fa-download"></i>导出备份</button>
+                <button v-if="isEditor" @click="isEditor=false;inputPwd=''" class="border px-3 py-1.5 rounded">退出编辑</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="border-b mb-5 flex gap-x-6 text-sm flex-wrap">
+        <button v-for="t in tabs" @click="activeTab=t.key" :class="activeTab===t.key?'py-2.5 tab-active':'py-2.5'">{{t.name}}</button>
+    </div>
+
+    <div v-if="activeTab==='panel'" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="bg-white shadow rounded-xl p-5">
+            <h2 class="text-lg font-semibold mb-4"><i class="fa fa-wallet text-primary"></i>家庭财务账户</h2>
+            <div class="space-y-4">
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="flex justify-between mb-1"><span>备用金</span><span>{{formatNum(calcReserve())}} / {{formatNum(system.reserveMax)}}</span></div>
+                    <div class="w-full bg-gray-200 h-2.5 rounded-full">
+                        <div class="bg-primary h-2.5 rounded-full" :style="{width:Math.min(100,calcReserve()/system.reserveMax*100)+'%'}"></div>
+                    </div>
+                    <div class="text-xs text-gray-500">完成率 {{(Math.min(100,calcReserve()/system.reserveMax*100)).toFixed(2)}}%</div>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="flex justify-between mb-1"><span>{{system.goalAName}}</span><span>{{formatNum(calcGoalA())}} / {{formatNum(system.goalAAmount)}}</span></div>
+                    <div class="w-full bg-gray-200 h-2.5 rounded-full">
+                        <div class="bg-success h-2.5 rounded-full" :style="{width:Math.min(100,calcGoalA()/system.goalAAmount*100)+'%'}"></div>
+                    </div>
+                    <div class="text-xs text-gray-500">完成率 {{(Math.min(100,calcGoalA()/system.goalAAmount*100)).toFixed(2)}}%</div>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="flex justify-between mb-1"><span>{{system.goalBName}}</span><span>{{formatNum(calcGoalB())}} / {{formatNum(system.goalBAmount)}}</span></div>
+                    <div class="w-full bg-gray-200 h-2.5 rounded-full">
+                        <div class="bg-warning h-2.5 rounded-full" :style="{width:Math.min(100,calcGoalB()/system.goalBAmount*100)+'%'}"></div>
+                    </div>
+                    <div class="text-xs text-gray-500">完成率 {{(Math.min(100,calcGoalB()/system.goalBAmount*100)).toFixed(2)}}%</div>
+                </div>
+            </div>
+            <div class="mt-4 pt-3 border-t font-medium">家庭资产合计：<span class="text-primary text-xl">{{formatNum(calcTotalAsset())}}</span>元</div>
+        </div>
+
+        <div class="bg-white shadow rounded-xl p-5">
+            <h2 class="text-lg font-semibold mb-4"><i class="fa fa-cog"></i>目标与系统参数</h2>
+            <div class="grid gap-y-3">
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">目标A名称</label>
+                    <input v-model="system.goalAName" class="cell-input" :disabled="!isEditor">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">目标A金额(元)</label>
+                    <input v-model.number="system.goalAAmount" type="number" class="cell-input" :disabled="!isEditor">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">目标B名称</label>
+                    <input v-model="system.goalBName" class="cell-input" :disabled="!isEditor">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">目标B金额(元)</label>
+                    <input v-model.number="system.goalBAmount" type="number" class="cell-input" :disabled="!isEditor">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">备用金封顶(元)</label>
+                    <input v-model.number="system.reserveMax" type="number" class="cell-input" :disabled="!isEditor">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">定投比例(%)</label>
+                    <input v-model.number="system.investRatio" type="number" class="cell-input" :disabled="!isEditor">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">备用金期初(元)</label>
+                    <input v-model.number="system.reserveInit" type="number" class="cell-input" :disabled="!isEditor">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-sm text-gray-600">贷款总额</label>
+                    <input v-model.number="system.loanTotal" type="number" class="cell-input" :disabled="!isEditor">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="activeTab==='cash'" class="bg-white shadow rounded-xl p-5">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-semibold">每月资金规划</h2>
+            <button v-if="isEditor" @click="addMonth()" class="bg-primary text-white px-3 py-1.5 rounded text-sm"><i class="fa fa-plus"></i>新增月份</button>
+        </div>
+        <div class="scroll-x">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                <tr>
+                    <th class="px-2 py-2 text-left">月份</th>
+                    <th>到手收入</th>
+                    <th>房租</th>
+                    <th>生活花销</th>
+                    <th>零花钱</th>
+                    <th>固定支出合计</th>
+                    <th>可投资</th>
+                    <th>备用金支出</th>
+                    <th>定投赎回</th>
+                    <th>贷款月供</th>
+                    <th>目标A结转</th>
+                    <th>目标B结转</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr v-for="(row,idx) in cashList" :key="idx" class="border-b">
+                    <td class="px-2 py-1">{{row.year}}-{{String(row.month).padStart(2,'0')}}</td>
+                    <td><input v-model.number="row.income" class="cell-input w-20" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.rent" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.lifeCost" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.pocket" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td class="cell-auto w-20">{{(row.rent+row.lifeCost+row.pocket).toFixed(2)}}</td>
+                    <td class="cell-auto w-20">{{(row.income-(row.rent+row.lifeCost+row.pocket)).toFixed(2)}}</td>
+                    <td><input v-model.number="row.reservePay" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.etfRedeem" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.loanMonthPay" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.goalATransfer" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.goalBTransfer" class="cell-input w-16" :disabled="!isEditor"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2 text-xs text-gray-500">💡黄色=手动录入；浅蓝色=自动计算，修改后记得点【保存到云端】</div>
+    </div>
+
+    <div v-if="activeTab==='etf'" class="bg-white shadow rounded-xl p-5">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-semibold">ETF定投执行表</h2>
+        </div>
+        <div class="p-3 bg-gray-50 rounded mb-4 text-sm">
+            <div>标的：159915创业板ETF(40%)｜561550中证500增强ETF(30%)｜510880红利ETF(30%)</div>
+            <div>⚠️本版本全部期末市值手动录入；加码、再平衡信号后续迭代，现在只做台账记录。</div>
+        </div>
+        <div class="scroll-x">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                <tr>
+                    <th class="px-2 py-2">月份</th>
+                    <th>基础月度投资额</th>
+                    <th>159915期末市值</th>
+                    <th>561550期末市值</th>
+                    <th>510880期末市值</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr v-for="(row,idx) in etfList" :key="idx" class="border-b">
+                    <td class="px-2 py-1">{{row.year}}-{{String(row.month).padStart(2,'0')}}</td>
+                    <td><input v-model.number="row.baseInvest" class="cell-input w-24" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.final159915" class="cell-input w-24" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.final561550" class="cell-input w-24" :disabled="!isEditor"></td>
+                    <td><input v-model.number="row.final510880" class="cell-input w-24" :disabled="!isEditor"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div v-if="activeTab==='stock'" class="bg-white shadow rounded-xl p-5">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-semibold">股票执行表</h2>
+            <button v-if="isEditor" @click="addStockRow" class="bg-primary text-white px-3 py-1.5 rounded text-sm"><i class="fa fa-plus"></i>新增个股</button>
+        </div>
+        <div class="scroll-x">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                <tr>
+                    <th>名称</th><th>代码</th><th>建仓日期</th><th>建仓成本</th><th>股数</th><th>最新价</th><th>市值</th><th>盈亏</th><th>备注</th><th>操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr v-for="(s,idx) in stockList" :key="idx" class="border-b">
+                    <td><input v-model="s.name" class="cell-input w-20" :disabled="!isEditor"></td>
+                    <td><input v-model="s.code" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model="s.buildDate" class="cell-input w-20" :disabled="!isEditor"></td>
+                    <td><input v-model.number="s.costPrice" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="s.quantity" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td><input v-model.number="s.price" class="cell-input w-16" :disabled="!isEditor"></td>
+                    <td class="cell-auto">{{(s.price*s.quantity).toFixed(2)}}</td>
+                    <td class="cell-auto">{{((s.price*s.quantity)-(s.costPrice*s.quantity)).toFixed(2)}}</td>
+                    <td><input v-model="s.remark" class="cell-input w-20" :disabled="!isEditor"></td>
+                    <td><button v-if="isEditor" @click="delStock(idx)" class="text-danger">删除</button></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div v-if="activeTab==='manual'" class="bg-white shadow rounded-xl p-6">
+        <h2 class="text-xl font-bold mb-4">噜家理财操作说明书</h2>
+        <div class="text-sm space-y-3 text-gray-700">
+            <div>
+                <h3 class="font-semibold">每月操作流程</h3>
+                <ol class="list-decimal pl-5">
+                    <li>输入编辑密码进入编辑模式</li>
+                    <li>每月资金规划填入到手收入、各类支出</li>
+                    <li>ETF页面手动录入期末市值</li>
+                    <li>录入股票最新价格</li>
+                    <li>点击【保存到云端】；家人刷新网页即可看到更新</li>
+                    <li>定期导出JSON备份文件保存本地电脑</li>
+                </ol>
+            </div>
+            <div>
+                <h3 class="font-semibold">权限说明</h3>
+                <p>不输入密码打开网页：全部输入框禁用，仅只读浏览；只有输入正确编辑密码，才能修改数据并保存云端。</p>
+            </div>
+            <div>
+                <h3 class="font-semibold">风险纪律</h3>
+                <ul class="list-disc pl-5">
+                    <li>个股浮亏25%无条件止损；禁止亏损补仓</li>
+                    <li>应急赎回不能中断定投；信号空白期不操作</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+const DEFAULT_DATA = {
+    systemParam:{goalAName:"结婚",goalAAmount:150000,goalBName:"买车",goalBAmount:100000,reserveMax:50000,investRatio:10,reserveInit:30000,loanTotal:0},
+    cashList:[],
+    etfList:[],
+    stockList:[],
+    etfOutList:[]
+};
+
+function genInitMonths(){
+    let arr=[];
+    let y=2026,m=11;
+    for(let i=0;i<24;i++){
+        let nm = m+i;
+        let ny=y;
+        if(nm>12){
+            ny+=Math.floor((nm-1)/12);
+            nm=((nm-1)%12)+1;
+        }
+        arr.push({year:ny,month:nm,income:0,rent:0,lifeCost:0,pocket:0,reservePay:0,etfRedeem:0,loanMonthPay:0,goalATransfer:0,goalBTransfer:0})
+    }
+    return arr;
+}
+
+createApp({
+    data(){
+        return {
+            tabs:[
+                {key:'panel',name:'财务面板'},
+                {key:'cash',name:'每月资金规划'},
+                {key:'etf',name:'ETF定投执行'},
+                {key:'stock',name:'股票执行表'},
+                {key:'manual',name:'操作说明书'}
+            ],
+            activeTab:'panel',
+            isEditor:false,
+            inputPwd:'',
+            system:{...DEFAULT_DATA.systemParam},
+            cashList:genInitMonths(),
+            etfList:[],
+            stockList:[],
+            etfOutList:[]
+        }
+    },
+    mounted(){
+        this.loadCloud();
+    },
+    methods:{
+        formatNum(n){ return Number(n||0).toLocaleString() },
+        calcReserve(){ return Number(this.system.reserveInit||0); },
+        calcGoalA(){ return this.cashList.reduce((s,r)=>s+Number(r.goalATransfer||0),0) },
+        calcGoalB(){ return this.cashList.reduce((s,r)=>s+Number(r.goalBTransfer||0),0) },
+        calcTotalAsset(){ return this.calcReserve()+this.calcGoalA()+this.calcGoalB() },
+
+        async loadCloud(){
+            try{
+                const res=await fetch("/api/read");
+                const json=await res.json();
+                if(json.ok&&json.payload){
+                    const d=json.payload;
+                    this.system=d.systemParam;
+                    this.cashList=d.cashList;
+                    this.etfList=d.etfList||[];
+                    this.stockList=d.stockList||[];
+                    this.etfOutList=d.etfOutList||[];
+                }
+            }catch(e){
+                console.log("云端读取失败，加载初始默认数据");
+            }
+        },
+
+        async tryEnterEditor(){
+            try{
+                const res=await fetch("/api/save",{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({password:this.inputPwd,payload:null})
+                })
+                if(res.status===403){ alert("密码错误，无法进入编辑模式"); return; }
+                this.isEditor=true;
+                alert("✅已进入编辑模式！修改完记得点【保存到云端】");
+            }catch(err){
+                alert("网络异常，访问云端接口失败");
+            }
+        },
+
+        async saveCloud(){
+            const payload={
+                systemParam:this.system,
+                cashList:this.cashList,
+                etfList:this.etfList,
+                stockList:this.stockList,
+                etfOutList:this.etfOutList
+            };
+            try{
+                const res=await fetch("/api/save",{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({password:this.inputPwd,payload})
+                });
+                const j=await res.json();
+                if(j.ok){
+                    alert("✅保存云端成功！家人刷新页面即可看到更新");
+                }else{
+                    alert(j.msg||"保存失败");
+                }
+            }catch(e){
+                alert("保存失败，请检查网络");
+            }
+        },
+
+        exportJson(){
+            const payload={
+                systemParam:this.system,
+                cashList:this.cashList,
+                etfList:this.etfList,
+                stockList:this.stockList,
+                etfOutList:this.etfOutList
+            };
+            const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+            const a=document.createElement("a");
+            a.href=URL.createObjectURL(blob);
+            a.download="噜家理财备份.json";
+            a.click();
+        },
+
+        addMonth(){
+            const last=this.cashList[this.cashList.length-1];
+            let ny=last.year,nm=last.month+1;
+            if(nm>12){ ny++; nm=1; }
+            this.cashList.push({year:ny,month:nm,income:0,rent:0,lifeCost:0,pocket:0,reservePay:0,etfRedeem:0,loanMonthPay:0,goalATransfer:0,goalBTransfer:0});
+        },
+
+        addStockRow(){
+            this.stockList.push({name:"",code:"",buildDate:"",costPrice:0,quantity:0,price:0,remark:""});
+        },
+        delStock(idx){
+            this.stockList.splice(idx,1);
+        }
+    }
+}).mount("#app")
+</script>
+</body>
+</html>
